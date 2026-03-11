@@ -1,127 +1,67 @@
-# ByteSCAN
+# ARC-Loc: Leveragine Azimuthal Ray Convergence as a Geometric Cue for Direct Cross-View Localization
 <br>
-<p align="center"> <img src="https://github.com/syt06007/ByteSCAN/blob/main/images/ByteSCAN.png" width="100%"> </p>
+<p align="center"> <img src="./figures/main_arch.png" width="100%"> </p>
 
-## Preparation:
-### 1. Requirement:
-* PyTorch 2.2.1, torchvision 0.17.1. The code is tested with python=3.10, cuda=12.2
+## 📝 Abstract
+Cross-view localization (CVL) estimates the pose of a ground image by matching it to a geo-referenced satellite image. 
+To bridge the extreme viewpoint gap, mainstream pipelines rely on Bird's-Eye-View (BEV) transformations or 2D-to-3D lifting. 
+However, deriving 3D structures from a single ground image is fundamentally ill-posed, causing these methods to endure geometric distortions and computational costs during 3D lifting or BEV projection. Furthermore, relying on external depth foundation models to resolve this introduces latency and remains susceptible to noisy predictions.
+In this work, we present a different approach inspired by a human navigation technique called \textit{resection}, that can perform direct ground to satellite image matching and localization without relying on external depth foundation models.
+The key insights of our method are that (i) ground keypoints can be translated into azimuthal rays on the satellite map, and (ii) these rays ideally converge at the user location. 
+Exploiting this geometric constraint through direct line-to-point correspondences, we introduce a minimal Azimuthal Ray Convergence (ARC) solver to identify the intersection, alongside an ARC loss to optimize the matching network. 
+By eliminating dependencies on computationally heavy BEV transformations and external depth foundation models, our approach achieves faster, memory-efficient inference, while its explicit feature matching ensures straightforward compatibility with existing frameworks.
+Experiments on VIGOR and KITTI demonstrate that ARC-Loc maintains competitive localization accuracy compared to recent approaches, highlighting its practicality.
+
+
+## ⚙️ 1. Preparation:
+### Requirement:
+* PyTorch 2.2.2, python=3.10, cuda=12.1
 
 ```
 pip install -r requirements.txt
 ```
 
-### 2. Datasets:
-To use the [FFT75](https://ieee-dataport.org/open-access/file-fragment-type-fft-75-dataset) dataset for training and validation, follow these steps:
+### VIGOR Dataset
 
-1. Download the **4k_1** data from the **FFT75** dataset.
-2. Rename the downloaded files:
-   - Rename `train.npz` to `train_4096.npz`
-   - Rename `val.npz` to `val_4096.npz`
-3. Place the renamed files in the following directory:
-   - `dataset/fft/`
-4. Run the data split script to organize the dataset into the desired structure. Adjust the arguments in `data_split.py` as needed to ensure the files are split and organized according to the following path structure:
+Download the dataset from the [official VIGOR repository](https://github.com/Jeff-Zilence/VIGOR/blob/main/data/DATASET.md).
 
-### 3. Backbone Pretraining:
-This section explains how to train the **ResNet18-1D Backbone**. The training process allows you to select one of three options for pretraining using the parser. You can choose between the following settings:
+**Update the config:**  
+In `config.ini`, set `dataset_root` under VIGOR entry to the path where you placed the VIGOR dataset, for example:
 
-- `fft_RandomCrop`
-- `fft_FixedCrop`
-- `govdocs_RandomCrop`
+dataset_root = /home/username/VIGOR
 
-To train the backbone with one of these options, run the following command:
+**Corrected labels (recommended):**  
+Download the corrected label splits from [SliceMatch (VIGOR_corrected_labels)](https://github.com/tudelft-iv/SliceMatch/tree/main/VIGOR_corrected_labels), and follow their instructions to replace the original `splits` folder with the downloaded `splits__corrected` folder.
 
+### KITTI Dataset
+
+Download and structure the dataset according to [HighlyAccurate
+](https://github.com/YujiaoShi/HighlyAccurate).
+In `config.ini`, set `dataset_root` under KITTI entry to the path where you placed the KITTI dataset, for example:
+
+dataset_root = /home/username/KITTI
+
+---
+
+## Inference
 ```
-python backbone_pretrain.py --settings=fft_RandomCrop
-```
-
-
-If everything is prepared, you will have the following directory structure.
-
-
-
-### Path structure:
-  ```
-    ByteSCAN/
-    ├── ckpt/
-    │   ├── backbone/
-    │   │   ├── FFT75_FixedCrop_ResNet18.pth
-    │   │   ├── FFT75_RandomCrop_ResNet18.pth
-    │   │   ├── Govdocs_RandomCrop_ResNet18.pth
-    │   ├── fft/
-    │   │   ├── .gitkeep
-    │   ├── govdocs/
-    │   │   ├── .gitkeep
-    ├── dataset/
-    │   ├── fft/
-    │   │   ├── train_512.npz
-    │   │   ├── train_1024.npz
-    │   │   ├── train_2048.npz
-    │   │   ├── train_4096.npz
-    │   │   ├── val_512.npz
-    │   │   ├── val_1024.npz
-    │   │   ├── val_2048.npz
-    │   │   ├── val_4096.npz
-    │   ├── govdocs/
-    │   │   ├── train_512.npz
-    │   │   ├── train_1024.npz
-    │   │   ├── train_2048.npz
-    │   │   ├── train_4096.npz
-    │   │   ├── val_512.npz
-    │   │   ├── val_1024.npz
-    │   │   ├── val_2048.npz
-    │   │   ├── val_4096.npz
-  ```
-
-## Parser Options
-
-This project includes a parser with predefined options to facilitate the reproduction of results presented in the paper. 
-
-- The `--settings` option allows you to choose from various configurations, such as `set_num_1`, `set_num_2`, etc., each corresponding to a specific experiment setup.
-- The `--block_size` option lets you specify the size of data segments, with available options being `512`, `1024`, `2048`, and `4096`.
-
-
-## Train/Test:
-```
-python main.py --settings=set_num_1 --block_size=4096
+python main.py ~~~
 ```
 
+## Training
 ```
-python test.py --settings=set_num_1 --block_size=4096
-```
-* Checkpoint will be saved to `./ckpt/fft(or govdocs)/`.
-
-
-## Reproduce the parameters reported in our paper:
-* Run `models/transformer.py` to reproduce the parameters reported in our paper. Note that, the parameter measurement require `pip install thop`
-```
-python models/transformer.py
+python test.py ~~~
 ```
 
-## Results:
-
-### Performance on Datasets:
-<p align="center"> <img src="https://github.com/syt06007/ByteSCAN/blob/main/images/results.png" width="100%"> </p>
+## 📊 Results
+<p align="center"> <img src="./figures/results_vigor_known.png" width="100%"> </p>
 
 
-<!-- ## Citiation
-**If you find this work helpful, please consider citing:**
-```
-@InProceedings{,
-    author    = {},
-    title     = {},
-    booktitle = {},
-    month     = {},
-    year      = {},
-    pages     = {}
-}
-```
-<br> -->
 
-
-## Contact
+## ☎️ Contact
+If you have any questions or issues, please open an issue on GitHub or contact me at [khs06007@hanyang.ac.kr].
 
 ## Reference
-* The implementation of other models referenced in this paper can be found in **[[XMP_TIFS](https://github.com/DominicoRyu/XMP_TIFS)]**.
+* This repository is heavily built upon the official implementation of [FG2](https://github.com/vita-epfl/FG2). We sincerely thank the authors for open-sourcing their excellent work.**.
 
 ## License
-A patent application for ByteSCAN has been submitted and is under review for registration. ByteSCAN is licensed under the CC-BY-NC-SA-4.0 license limiting any commercial use.
